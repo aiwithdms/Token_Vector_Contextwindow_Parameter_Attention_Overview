@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Core Concepts: Interactive Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617; /* Slate 950 */
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-btn.active {
+            background: linear-gradient(135deg, #4f46e5 0%, #312e81 100%);
+            border-color: #6366f1;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+            color: white;
+        }
+
+        /* --- Simulation Specific Styles --- */
+        
+        /* Tokenizer */
+        .token-chunk {
+            display: inline-block;
+            padding: 2px 6px;
+            margin: 2px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        /* Vectors */
+        .vector-space {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .vector-point {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .v-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 10px currentColor; }
+        
+        /* Context Window */
+        .context-doc {
+            max-height: 250px;
+            overflow-y: auto;
+            position: relative;
+            padding: 10px;
+        }
+        .context-frame {
+            position: absolute;
+            left: 0;
+            right: 0;
+            background: rgba(99, 102, 241, 0.15);
+            border-top: 2px solid #818cf8;
+            border-bottom: 2px solid #818cf8;
+            transition: top 0.3s ease, height 0.3s ease;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .blurred-text { filter: blur(3px); opacity: 0.4; transition: all 0.3s; }
+        .in-context { filter: blur(0px); opacity: 1; text-shadow: 0 0 1px rgba(255,255,255,0.5); transition: all 0.3s; }
+
+        /* Parameters */
+        .param-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(10px, 1fr));
+            gap: 4px;
+            height: 200px;
+            align-content: start;
+        }
+        .param-node {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            background: #334155;
+            transition: all 0.3s ease;
+        }
+        .param-node.active { background: #34d399; box-shadow: 0 0 8px #34d399; }
+
+        /* Attention */
+        .att-word {
+            display: inline-block;
+            margin: 0 4px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255,255,255,0.05);
+        }
+        .att-word:hover { background: rgba(255,255,255,0.15); transform: translateY(-2px); }
+        .att-high { background: rgba(16, 185, 129, 0.3); border: 1px solid #34d399; }
+        .att-med { background: rgba(99, 102, 241, 0.3); border: 1px solid #818cf8; }
+        .att-low { opacity: 0.3; }
+        
+        .fade-in { animation: fadeIn 0.4s ease-in forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+    <header class="w-full bg-slate-900 border-b border-slate-800 shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-lg shadow-lg shadow-indigo-900/50">
+                    <i data-lucide="network" class="text-white w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+                        Inside the AI Engine
+                    </h1>
+                    <p class="text-indigo-400 text-xs md:text-sm font-medium tracking-wide">Interactive Mechanics Explorer</p>
+                </div>
+            </div>
+            
+            <div class="text-center md:text-right flex flex-col items-center md:items-end">
+                <p class="text-slate-200 font-semibold text-sm md:text-base flex items-center gap-2">
+                    <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+                    D. Meenakshi Sundaram (DMS)
+                </p>
+                <p class="text-xs text-slate-400 font-medium bg-slate-800 px-2 py-0.5 rounded mt-1 border border-slate-700">
+                    AI Adoption & Productivity Architect
+                </p>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full max-w-7xl mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8 items-start">
+        
+        <!-- Left Sidebar Navigation -->
+        <aside class="w-full lg:w-64 flex-shrink-0 lg:sticky lg:top-28 z-40">
+            <div class="glass-panel p-4 rounded-2xl flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-visible">
+                <h3 class="hidden lg:block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 pl-2">Core Mechanics</h3>
+                
+                <button onclick="loadTerm('tokens')" id="nav-tokens" class="nav-btn flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-slate-800 transition-all text-left whitespace-nowrap lg:whitespace-normal border border-transparent">
+                    <i data-lucide="blocks" class="w-5 h-5 flex-shrink-0 text-amber-400"></i>
+                    <span class="font-medium">1. Tokens</span>
+                </button>
+                
+                <button onclick="loadTerm('vectors')" id="nav-vectors" class="nav-btn flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-slate-800 transition-all text-left whitespace-nowrap lg:whitespace-normal border border-transparent">
+                    <i data-lucide="scatter-chart" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i>
+                    <span class="font-medium">2. Vectors</span>
+                </button>
+                
+                <button onclick="loadTerm('context')" id="nav-context" class="nav-btn flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-slate-800 transition-all text-left whitespace-nowrap lg:whitespace-normal border border-transparent">
+                    <i data-lucide="maximize" class="w-5 h-5 flex-shrink-0 text-blue-400"></i>
+                    <span class="font-medium">3. Context Window</span>
+                </button>
+                
+                <button onclick="loadTerm('parameters')" id="nav-parameters" class="nav-btn flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-slate-800 transition-all text-left whitespace-nowrap lg:whitespace-normal border border-transparent">
+                    <i data-lucide="sliders" class="w-5 h-5 flex-shrink-0 text-purple-400"></i>
+                    <span class="font-medium">4. Parameters</span>
+                </button>
+
+                <button onclick="loadTerm('attention')" id="nav-attention" class="nav-btn flex items-center gap-3 p-3 rounded-xl text-slate-300 hover:bg-slate-800 transition-all text-left whitespace-nowrap lg:whitespace-normal border border-transparent">
+                    <i data-lucide="eye" class="w-5 h-5 flex-shrink-0 text-pink-400"></i>
+                    <span class="font-medium">5. Attention</span>
+                </button>
+            </div>
+        </aside>
+
+        <div class="flex-grow w-full flex flex-col gap-6" id="content-container">
+            
+            <!-- Header Section -->
+            <div class="glass-panel p-6 rounded-2xl flex items-center gap-4 fade-in" id="panel-header">
+                <div id="icon-bg" class="p-3 bg-slate-800 rounded-xl">
+                    <i id="term-icon" data-lucide="cpu" class="w-8 h-8 text-white"></i>
+                </div>
+                <div>
+                    <h2 id="term-title" class="text-3xl font-bold text-white mb-1">Title</h2>
+                    <p id="term-tech" class="text-sm text-slate-400 font-medium">Technical Definition</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Story / Metaphor -->
+                <div class="glass-panel p-6 rounded-2xl fade-in flex flex-col" style="animation-delay: 0.1s">
+                    <h3 class="text-sm uppercase tracking-widest font-bold mb-4 flex items-center gap-2 text-indigo-400">
+                        <i data-lucide="book-open" class="w-4 h-4"></i> The Metaphor
+                    </h3>
+                    <div class="bg-slate-900/50 p-5 rounded-xl border border-slate-700/50 flex-grow">
+                        <p id="term-story" class="text-slate-300 leading-relaxed text-[15px]"></p>
+                    </div>
+                </div>
+
+                <!-- Use Cases -->
+                <div class="glass-panel p-6 rounded-2xl fade-in flex flex-col gap-4" style="animation-delay: 0.2s">
+                    <h3 class="text-sm uppercase tracking-widest font-bold mb-1 flex items-center gap-2 text-emerald-400">
+                        <i data-lucide="briefcase" class="w-4 h-4"></i> Real-World Use Cases
+                    </h3>
+                    
+                    <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 border-l-4 border-l-blue-500">
+                        <h4 class="text-xs font-bold text-blue-400 uppercase mb-1">Corporate Industry</h4>
+                        <p id="term-corp" class="text-slate-300 text-sm leading-relaxed"></p>
+                    </div>
+
+                    <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 border-l-4 border-l-purple-500">
+                        <h4 class="text-xs font-bold text-purple-400 uppercase mb-1">IT & Development</h4>
+                        <p id="term-it" class="text-slate-300 text-sm leading-relaxed"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive Simulation Panel -->
+            <div class="glass-panel p-6 rounded-2xl fade-in" style="animation-delay: 0.3s">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-sm uppercase tracking-widest font-bold flex items-center gap-2 text-amber-400">
+                        <i data-lucide="play-circle" class="w-5 h-5"></i> Interactive Simulation
+                    </h3>
+                    <span id="sim-instruction" class="text-xs text-slate-400 bg-slate-800 px-3 py-1 rounded-full"></span>
+                </div>
+                
+                <!-- Injection point for bespoke simulations -->
+                <div id="simulation-stage" class="w-full bg-slate-950 rounded-xl border border-slate-800 p-4 min-h-[350px] flex flex-col">
+                    <!-- Dynamic JS Content Goes Here -->
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="w-full bg-slate-900 border-t border-slate-800 py-10 mt-auto">
+        <div class="max-w-5xl mx-auto px-6 flex flex-col items-center text-center gap-6">
+            
+            <div class="bg-slate-800/50 border border-slate-700 p-6 rounded-2xl w-full max-w-2xl backdrop-blur-sm shadow-xl">
+                <h3 class="text-lg font-bold text-white mb-2">Architected & Curated by</h3>
+                <p class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400 mb-1">
+                    D. Meenakshi Sundaram (DMS)
+                </p>
+                <p class="text-slate-400 text-sm mb-5 leading-relaxed">
+                    AI Adoption & Productivity Architect<br>
+                    <span class="text-xs opacity-75">Approved AI Expert for AIMS (ISO/IEC 42001) | Certified Educator</span>
+                </p>
+                
+                <a href="https://www.linkedin.com/in/dmsmtech" target="_blank" rel="noopener noreferrer" 
+                   class="inline-flex items-center gap-2 bg-[#0077b5] hover:bg-[#006396] text-white px-6 py-2.5 rounded-full font-medium transition-all transform hover:scale-105 shadow-lg shadow-blue-900/20">
+                    <i data-lucide="linkedin" class="w-5 h-5"></i>
+                    Connect with DMS on LinkedIn
+                </a>
+            </div>
+
+            <div class="w-full border-t border-slate-800/80 pt-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+                <p class="font-medium text-slate-400">&copy; <span id="year"></span> D. Meenakshi Sundaram (DMS). All rights reserved.</p>
+                <p class="italic max-w-xl text-center md:text-right">
+                    Disclaimer: This interactive simulation is for educational and training purposes. The visualizations are conceptual simplifications of complex AI architectures designed to facilitate enterprise learning.
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.getElementById('year').textContent = new Date().getFullYear();
+        lucide.createIcons();
+
+        // Data payload for all terms
+        const terminologyData = {
+            tokens: {
+                id: 'tokens',
+                title: 'Tokens',
+                icon: 'blocks',
+                iconColor: 'text-amber-400',
+                tech: 'The fundamental unit of data processed by an LLM. Words are split into sub-word chunks (tokens) and mapped to integer IDs.',
+                story: '<strong class="text-white">Lego Bricks of Language:</strong> Imagine you are building a castle with Legos. An AI doesn\'t look at a whole word like "Unbelievable" as one giant custom piece. It breaks it down into standard Lego bricks: "Un" + "believ" + "able". This allows it to mix and match pieces efficiently to build new sentences.',
+                corp: '<strong>API Cost Optimization:</strong> Commercial LLMs charge per token, not per word. A company processing massive legal contracts must understand token limits and costs. E.g., stripping out unnecessary spaces and formatting from documents saves tokens and reduces Azure/OpenAI billing.',
+                it: '<strong>Code Tokenization:</strong> When an AI reads source code, it breaks syntax down. `def user_login():` becomes distinct tokens representing keywords, variables, and punctuation, allowing the AI to predict the next logical code syntax flawlessly.',
+                instruction: 'Type text to see how it is split into tokens.',
+                setupSim: setupTokenSimulation
+            },
+            vectors: {
+                id: 'vectors',
+                title: 'Vectors (Embeddings)',
+                icon: 'scatter-chart',
+                iconColor: 'text-emerald-400',
+                tech: 'High-dimensional numerical arrays representing the semantic meaning of data. Similar concepts are placed closer together in vector space.',
+                story: '<strong class="text-white">The Concept Grocery Store:</strong> In a normal dictionary, words are sorted alphabetically ("Apple" is near "Ant"). In an AI\'s brain (Vector Space), words are sorted by *meaning*. "Apple" is placed near "Banana" and "Diet", far away from "Car". Vectors give the AI a sense of spatial relationship between ideas.',
+                corp: '<strong>HR Resume Matching:</strong> A recruiter searches for "Excel skills". Traditional systems only find resumes with the exact word "Excel". A vector database understands the semantic meaning and brings up resumes mentioning "Spreadsheets", "Data Analysis", and "VLOOKUP" because they are mathematically clustered nearby.',
+                it: '<strong>Semantic Search (RAG):</strong> IT helpdesks use vector databases (like Pinecone) to embed company documentation. A user typing "How to fix login error" pulls up documents related to "Authentication failure resolution" because their vectors match.',
+                instruction: 'Click categories to plot related words in 2D Semantic Space.',
+                setupSim: setupVectorSimulation
+            },
+            context: {
+                id: 'context',
+                title: 'Context Window',
+                icon: 'maximize',
+                iconColor: 'text-blue-400',
+                tech: 'The maximum number of tokens an LLM can hold in its working memory simultaneously during a single interaction (prompt + generated response).',
+                story: '<strong class="text-white">The Magnifying Glass:</strong> Imagine reading a giant, endless scroll using a small magnifying glass frame. You can only remember what is currently visible inside the frame. If you read the bottom of the scroll, you forget the rules written at the very top. The "frame" is the Context Window.',
+                corp: '<strong>Financial Report Summarization:</strong> If a firm feeds a 200-page Q4 earnings report into an AI with a small context window, the AI will "forget" page 1 by the time it reaches page 200, leading to inaccurate summaries or hallucinations about early data points.',
+                it: '<strong>Codebase Refactoring:</strong> Passing multiple files into an LLM to find a bug. If the context window is too small, the AI forgets the global variables defined in `config.js` while attempting to rewrite `main.js`.',
+                instruction: 'Drag the blue window. The AI can only "see" text inside it.',
+                setupSim: setupContextSimulation
+            },
+            parameters: {
+                id: 'parameters',
+                title: 'Parameters',
+                icon: 'sliders',
+                iconColor: 'text-purple-400',
+                tech: 'The internal, learned weights and biases within a neural network that determine how input data is transformed into output predictions.',
+                story: '<strong class="text-white">The Soundboard Knobs:</strong> A simple pocket radio has 2 knobs (volume, tuning). A massive stadium audio mixing board has billions of tiny knobs. Each parameter is a microscopic knob. By adjusting billions of them, the AI fine-tunes exactly how a prompt flows through it to produce a nuanced response.',
+                corp: '<strong>Model Selection (ROI):</strong> A company must choose between an 8B (Billion parameter) model and a 70B model. An 8B model is cheap and fast—perfect for sorting customer support emails. A 70B model is expensive and slow, but necessary for complex legal analysis.',
+                it: '<strong>Fine-Tuning (LoRA):</strong> Instead of retraining a massive model from scratch, developers freeze most of the parameters and only train a tiny extra set of "knobs" (Low-Rank Adaptation) to teach the AI a specific proprietary coding language.',
+                instruction: 'Slide to increase model size and watch network capability improve.',
+                setupSim: setupParameterSimulation
+            },
+            attention: {
+                id: 'attention',
+                title: 'Attention Mechanism',
+                icon: 'eye',
+                iconColor: 'text-pink-400',
+                tech: 'A mathematical mechanism (Self-Attention in Transformers) allowing a model to dynamically weigh the importance of different words in a sequence relative to each other.',
+                story: '<strong class="text-white">The Cocktail Party Effect:</strong> Imagine being at a loud party. To understand a story, you focus your "attention" on the speaker\'s voice and ignore the background noise. For an AI, if a sentence has the word "Bark", it pays attention to surrounding words ("Dog" vs "Tree") to figure out if it means an animal sound or wood.',
+                corp: '<strong>Global Contract Translation:</strong> When translating a legal document from English to French, the word "Bank" could mean a financial institution or the side of a river. Attention mechanisms scan the whole paragraph for context clues ("deposit", "loan") to select the correct French word automatically.',
+                it: '<strong>Log Error Debugging:</strong> An AI scans 10,000 lines of server logs. The attention mechanism learns to ignore routine server pings and assigns mathematical "focus" linking the word `Exception` on line 500 to a `NullPointer` variable on line 2.',
+                instruction: 'Hover over the highlighted words to see what the AI pays attention to.',
+                setupSim: setupAttentionSimulation
+            }
+        };
+
+        function loadTerm(termId) {
+            const data = terminologyData[termId];
+            if (!data) return;
+
+            // Update UI Navigation state
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`nav-${termId}`).classList.add('active');
+
+            // Reset animations by cloning container
+            const container = document.getElementById('content-container');
+            container.classList.remove('fade-in');
+            void container.offsetWidth; // trigger reflow
+            
+            // Update Text Content
+            document.getElementById('term-title').textContent = data.title;
+            document.getElementById('term-tech').textContent = data.tech;
+            document.getElementById('term-story').innerHTML = data.story;
+            document.getElementById('term-corp').innerHTML = data.corp;
+            document.getElementById('term-it').innerHTML = data.it;
+            document.getElementById('sim-instruction').textContent = data.instruction;
+
+            // Update Icon
+            const iconEl = document.getElementById('term-icon');
+            iconEl.setAttribute('data-lucide', data.icon);
+            document.getElementById('icon-bg').className = `p-3 rounded-xl bg-slate-800 ${data.iconColor}`;
+            lucide.createIcons();
+
+            // Clear and Setup Simulation
+            const stage = document.getElementById('simulation-stage');
+            stage.innerHTML = ''; // clear previous
+            data.setupSim(stage);
+        }
+
+        function setupTokenSimulation(stage) {
+            stage.innerHTML = `
+                <div class="w-full flex flex-col h-full gap-4">
+                    <textarea id="token-input" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-slate-200 focus:outline-none focus:border-amber-500 resize-none h-24" placeholder="Type a sentence here... e.g., 'Unbelievably fast artificial intelligence!'"></textarea>
+                    
+                    <div class="flex justify-between items-center bg-slate-800 p-2 rounded border border-slate-700">
+                        <span class="text-sm text-slate-400">Total Tokens: <strong id="token-count" class="text-amber-400 text-lg">0</strong></span>
+                        <button onclick="document.getElementById('token-input').value = 'ChatGPT is revolutionizing the enterprise workflow.'; document.getElementById('token-input').dispatchEvent(new Event('input'));" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-white transition-colors">Try Example</button>
+                    </div>
+
+                    <div id="token-output" class="bg-slate-900 flex-grow rounded-lg p-4 border border-slate-700 overflow-y-auto leading-loose">
+                        <span class="text-slate-500 italic text-sm">Visualized tokens will appear here...</span>
+                    </div>
+                </div>
+            `;
+
+            const colors = ['bg-red-500/20 text-red-300 border-red-500/30', 'bg-blue-500/20 text-blue-300 border-blue-500/30', 'bg-green-500/20 text-green-300 border-green-500/30', 'bg-purple-500/20 text-purple-300 border-purple-500/30', 'bg-amber-500/20 text-amber-300 border-amber-500/30'];
+            
+            const input = document.getElementById('token-input');
+            const output = document.getElementById('token-output');
+            const countDisplay = document.getElementById('token-count');
+
+            input.addEventListener('input', (e) => {
+                const text = e.target.value;
+                if (!text) {
+                    output.innerHTML = '<span class="text-slate-500 italic text-sm">Visualized tokens will appear here...</span>';
+                    countDisplay.textContent = '0';
+                    return;
+                }
+
+                // Extremely simplified mock tokenizer for visual purposes
+                // Splits by spaces and some punctuation to simulate sub-words
+                let tokens = text.match(/[A-Z]?[a-z]+|[A-Z]+|[0-9]+|[^\w\s]|\s+/g) || [];
+                
+                output.innerHTML = '';
+                let colorIdx = 0;
+                let actualTokenCount = 0;
+
+                tokens.forEach(token => {
+                    if (token.trim() === '') {
+                        // Just append spaces, don't style them as tokens for cleaner visual
+                        output.appendChild(document.createTextNode(token));
+                        return;
+                    }
+                    
+                    const span = document.createElement('span');
+                    span.className = `token-chunk ${colors[colorIdx % colors.length]}`;
+                    span.textContent = token;
+                    output.appendChild(span);
+                    colorIdx++;
+                    actualTokenCount++;
+                });
+                
+                countDisplay.textContent = actualTokenCount;
+            });
+        }
+
+        function setupVectorSimulation(stage) {
+            stage.innerHTML = `
+                <div class="w-full flex flex-col h-full gap-4">
+                    <div class="flex gap-2 justify-center">
+                        <button id="btn-food" class="px-4 py-2 bg-slate-800 hover:bg-emerald-900/50 border border-slate-700 rounded-full text-sm text-slate-300 transition-colors focus:outline-none">Load "Food"</button>
+                        <button id="btn-tech" class="px-4 py-2 bg-slate-800 hover:bg-emerald-900/50 border border-slate-700 rounded-full text-sm text-slate-300 transition-colors focus:outline-none">Load "Tech"</button>
+                        <button id="btn-both" class="px-4 py-2 bg-slate-800 hover:bg-emerald-900/50 border border-slate-700 rounded-full text-sm text-slate-300 transition-colors focus:outline-none">Load Both (Clustering)</button>
+                    </div>
+                    
+                    <div class="vector-space" id="vector-graph">
+                        <div class="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
+                            <span class="text-xs uppercase tracking-widest">Latent Space</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const graph = document.getElementById('vector-graph');
+            const dataSets = {
+                food: [
+                    { word: 'Apple', x: 20, y: 20, c: 'text-red-400' },
+                    { word: 'Banana', x: 25, y: 15, c: 'text-yellow-400' },
+                    { word: 'Steak', x: 15, y: 80, c: 'text-orange-400' },
+                    { word: 'Chicken', x: 22, y: 75, c: 'text-amber-400' }
+                ],
+                tech: [
+                    { word: 'Laptop', x: 80, y: 80, c: 'text-blue-400' },
+                    { word: 'Server', x: 85, y: 85, c: 'text-indigo-400' },
+                    { word: 'Python', x: 75, y: 20, c: 'text-cyan-400' },
+                    { word: 'Algorithm', x: 85, y: 25, c: 'text-teal-400' }
+                ]
+            };
+
+            let currentPoints = [];
+
+            function plotPoints(points) {
+                // Clear existing
+                currentPoints.forEach(p => p.remove());
+                currentPoints = [];
+
+                points.forEach((item, idx) => {
+                    setTimeout(() => {
+                        const pt = document.createElement('div');
+                        pt.className = `vector-point ${item.c}`;
+                        pt.style.left = '50%'; // start at center
+                        pt.style.top = '50%';
+                        
+                        pt.innerHTML = `
+                            <div class="text-xs font-bold mb-1 bg-slate-900/80 px-1 rounded">${item.word}</div>
+                            <div class="v-dot bg-current"></div>
+                        `;
+                        graph.appendChild(pt);
+                        currentPoints.push(pt);
+
+                        // Animate to position
+                        setTimeout(() => {
+                            pt.style.left = `${item.x}%`;
+                            pt.style.top = `${item.y}%`;
+                        }, 50);
+                    }, idx * 150);
+                });
+            }
+
+            document.getElementById('btn-food').onclick = () => plotPoints(dataSets.food);
+            document.getElementById('btn-tech').onclick = () => plotPoints(dataSets.tech);
+            document.getElementById('btn-both').onclick = () => plotPoints([...dataSets.food, ...dataSets.tech]);
+            
+            // Auto click first
+            setTimeout(() => document.getElementById('btn-both').click(), 500);
+        }
+
+        function setupContextSimulation(stage) {
+            stage.innerHTML = `
+                <div class="w-full flex flex-col h-full gap-4">
+                    
+                    <div class="flex items-center gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700">
+                        <label class="text-sm text-slate-300 w-32 shrink-0">Window Size:</label>
+                        <input type="range" id="ctx-size" min="40" max="180" value="80" class="w-full accent-blue-500">
+                    </div>
+                    
+                    <div class="flex items-center gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700">
+                        <label class="text-sm text-slate-300 w-32 shrink-0">Scroll Doc:</label>
+                        <input type="range" id="ctx-pos" min="0" max="100" value="0" class="w-full accent-blue-500">
+                    </div>
+
+                    <div class="relative bg-slate-900 border border-slate-700 rounded-lg h-[250px] overflow-hidden" id="doc-container">
+                        <div id="context-frame" class="context-frame" style="height: 80px; top: 0px;"></div>
+                        <div class="p-4 text-slate-400 text-sm space-y-4" id="doc-content">
+                            <p class="doc-line">Line 1: System Directive: You are a helpful financial assistant.</p>
+                            <p class="doc-line">Line 2: Client Profile: John Doe, Age 45, Risk Tolerance: High.</p>
+                            <p class="doc-line">Line 3: 2021 Portfolio Value: $250,000.</p>
+                            <p class="doc-line">Line 4: 2022 Portfolio Value: $210,000 (Tech stock dip).</p>
+                            <p class="doc-line">Line 5: 2023 Portfolio Value: $330,000 (Recovery).</p>
+                            <p class="doc-line">Line 6: 2024 Goal: Retire at 55. Need aggressive growth.</p>
+                            <p class="doc-line">Line 7: Preferred Sectors: AI, Renewable Energy.</p>
+                            <p class="doc-line">Line 8: Restricted Sectors: Fossil Fuels.</p>
+                            <p class="doc-line">Line 9: User Prompt: "Summarize my risk tolerance and restricted sectors."</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-blue-900/20 border border-blue-500/30 p-3 rounded text-sm text-blue-200">
+                        <strong>AI Output:</strong> <span id="ctx-output" class="italic">"You have a High risk tolerance. Restricted sectors: Fossil Fuels."</span>
+                    </div>
+                </div>
+            `;
+
+            const sizeSlider = document.getElementById('ctx-size');
+            const posSlider = document.getElementById('ctx-pos');
+            const frame = document.getElementById('context-frame');
+            const lines = document.querySelectorAll('.doc-line');
+            const output = document.getElementById('ctx-output');
+            const docContainer = document.getElementById('doc-container');
+
+            function updateContext() {
+                const size = parseInt(sizeSlider.value);
+                const posPercent = parseInt(posSlider.value);
+                
+                // Calculate max top position so frame doesn't go off bottom
+                const maxTop = 250 - size; 
+                const top = (posPercent / 100) * maxTop;
+
+                frame.style.height = `${size}px`;
+                frame.style.top = `${top}px`;
+
+                // Calculate which lines are inside the frame
+                const frameStart = top;
+                const frameEnd = top + size;
+
+                let seesProfile = false;
+                let seesRestrictions = false;
+
+                lines.forEach((line, index) => {
+                    // Approximate line heights for visual calculation (28px per line)
+                    const lineStart = index * 28 + 16; // 16 is padding
+                    const lineCenter = lineStart + 14;
+
+                    if (lineCenter >= frameStart && lineCenter <= frameEnd) {
+                        line.className = 'doc-line in-context text-white';
+                        if (index === 1) seesProfile = true; // Line 2 is profile
+                        if (index === 7) seesRestrictions = true; // Line 8 is restrictions
+                    } else {
+                        line.className = 'doc-line blurred-text';
+                    }
+                });
+
+                // Update simulated AI output based on what it "sees"
+                if (seesProfile && seesRestrictions) {
+                    output.textContent = `"You have a High risk tolerance. Restricted sectors: Fossil Fuels."`;
+                    output.className = "text-green-400";
+                } else if (seesProfile && !seesRestrictions) {
+                    output.textContent = `"You have a High risk tolerance. I don't know your restricted sectors (fell out of context window)."`;
+                    output.className = "text-amber-400";
+                } else if (!seesProfile && seesRestrictions) {
+                    output.textContent = `"I don't know your risk tolerance, but your restricted sectors are Fossil Fuels."`;
+                    output.className = "text-amber-400";
+                } else {
+                    output.textContent = `[Hallucination Error] "I don't have that information in my current memory."`;
+                    output.className = "text-red-400";
+                }
+            }
+
+            sizeSlider.addEventListener('input', updateContext);
+            posSlider.addEventListener('input', updateContext);
+            
+            // Initial call
+            setTimeout(updateContext, 100);
+        }
+
+        function setupParameterSimulation(stage) {
+            stage.innerHTML = `
+                <div class="w-full flex flex-col h-full gap-6">
+                    
+                    <div class="flex items-center gap-4 bg-slate-800 p-4 rounded-xl border border-slate-700">
+                        <div class="flex-grow">
+                            <label class="text-sm font-bold text-slate-300 block mb-2">Model Size (Parameters)</label>
+                            <input type="range" id="param-slider" min="1" max="3" step="1" value="1" class="w-full accent-purple-500">
+                            <div class="flex justify-between text-xs text-slate-500 mt-1">
+                                <span>Small (7B)</span>
+                                <span>Medium (33B)</span>
+                                <span>Large (70B+)</span>
+                            </div>
+                        </div>
+                        <div class="w-24 h-24 rounded-full border-4 border-slate-700 flex flex-col items-center justify-center bg-slate-900" id="gauge-bg">
+                            <span class="text-2xl font-bold text-white" id="iq-score">80</span>
+                            <span class="text-[10px] text-slate-400 uppercase">IQ Score</span>
+                        </div>
+                    </div>
+
+                    <div class="relative bg-slate-900 rounded-xl p-4 border border-slate-700 flex-grow">
+                        <div class="absolute top-2 left-4 text-xs text-slate-500">Neural Network Density</div>
+                        <div id="param-grid" class="param-grid mt-4">
+                            <!-- Nodes generated by JS -->
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 p-3 rounded text-sm text-slate-300 border-l-4 border-purple-500">
+                        <strong>Task: Explain Quantum Physics</strong><br>
+                        <span id="param-output" class="italic mt-1 block text-slate-400">"Science stuff about very small things."</span>
+                    </div>
+                </div>
+            `;
+
+            const slider = document.getElementById('param-slider');
+            const grid = document.getElementById('param-grid');
+            const score = document.getElementById('iq-score');
+            const gaugeBg = document.getElementById('gauge-bg');
+            const output = document.getElementById('param-output');
+
+            // Generate initial nodes
+            for (let i = 0; i < 200; i++) {
+                const node = document.createElement('div');
+                node.className = 'param-node';
+                grid.appendChild(node);
+            }
+            const nodes = document.querySelectorAll('.param-node');
+
+            function updateParameters() {
+                const val = parseInt(slider.value);
+                let activeCount = 0;
+                let iq = 0;
+                let text = "";
+                let color = "";
+
+                if (val === 1) {
+                    activeCount = 20; iq = 85; color = 'border-slate-500';
+                    text = `"Quantum physics is the study of very small things like atoms." (Basic, simplistic)`;
+                } else if (val === 2) {
+                    activeCount = 80; iq = 115; color = 'border-blue-500';
+                    text = `"Quantum mechanics is a fundamental theory in physics that provides a description of the physical properties of nature at the scale of atoms and subatomic particles." (Accurate, dictionary-like)`;
+                } else if (val === 3) {
+                    activeCount = 180; iq = 145; color = 'border-purple-500';
+                    text = `"Imagine the universe isn't continuous, but pixelated. Quantum physics studies these underlying 'pixels'—subatomic particles that exist in probabilities rather than fixed states until observed, governing the microscopic foundation of our macro-reality." (Nuanced, creative, insightful)`;
+                }
+
+                // Update visual nodes
+                nodes.forEach((node, idx) => {
+                    if (idx < activeCount) {
+                        setTimeout(() => node.classList.add('active'), Math.random() * 300); // randomize turn on
+                    } else {
+                        node.classList.remove('active');
+                    }
+                });
+
+                // Update stats
+                score.textContent = iq;
+                gaugeBg.className = `w-24 h-24 rounded-full border-4 flex flex-col items-center justify-center bg-slate-900 transition-colors ${color}`;
+                output.innerHTML = text;
+            }
+
+            slider.addEventListener('input', updateParameters);
+            setTimeout(updateParameters, 100);
+        }
+
+        function setupAttentionSimulation(stage) {
+            stage.innerHTML = `
+                <div class="w-full flex flex-col h-full gap-8 justify-center">
+                    
+                    <p class="text-sm text-slate-400 mb-2 text-center">Hover over the highlighted words (<span class="text-pink-400 border-b border-pink-400 border-dashed">bank</span>) to see how the model attends to surrounding context.</p>
+
+                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-lg leading-loose text-center shadow-inner">
+                        <span class="att-word sen1 text-slate-300">The</span>
+                        <span class="att-word sen1 text-slate-300" data-link="s1-target">bank</span>
+                        <span class="att-word sen1 text-slate-300">approved</span>
+                        <span class="att-word sen1 text-slate-300">his</span>
+                        <span class="att-word sen1 text-slate-300">large</span>
+                        <span class="att-word sen1 text-slate-300" data-link="s1-high">loan</span>
+                        <span class="att-word sen1 text-slate-300">and</span>
+                        <span class="att-word sen1 text-slate-300" data-link="s1-med">financial</span>
+                        <span class="att-word sen1 text-slate-300" data-link="s1-med">documents</span>
+                        <span class="att-word sen1 text-slate-300">today.</span>
+                    </div>
+
+                    <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 text-lg leading-loose text-center shadow-inner mt-4">
+                        <span class="att-word sen2 text-slate-300">He</span>
+                        <span class="att-word sen2 text-slate-300">parked</span>
+                        <span class="att-word sen2 text-slate-300">his</span>
+                        <span class="att-word sen2 text-slate-300" data-link="s2-med">boat</span>
+                        <span class="att-word sen2 text-slate-300">along</span>
+                        <span class="att-word sen2 text-slate-300">the</span>
+                        <span class="att-word sen2 text-slate-300">muddy</span>
+                        <span class="att-word sen2 text-slate-300" data-link="s2-target">bank</span>
+                        <span class="att-word sen2 text-slate-300">of</span>
+                        <span class="att-word sen2 text-slate-300">the</span>
+                        <span class="att-word sen2 text-slate-300" data-link="s2-high">river.</span>
+                    </div>
+
+                    <div id="att-output" class="text-center text-pink-400 h-6 font-medium tracking-wide">
+                        <!-- Dynamic resolution text -->
+                    </div>
+                </div>
+            `;
+
+            // Setup Target 1
+            const target1 = document.querySelector('.sen1[data-link="s1-target"]');
+            target1.classList.add('border-b-2', 'border-pink-500', 'border-dashed', 'text-pink-300');
+            
+            target1.addEventListener('mouseenter', () => {
+                document.querySelectorAll('.sen1').forEach(el => {
+                    if (el === target1) return;
+                    if (el.dataset.link === 's1-high') el.classList.add('att-high', 'text-emerald-300');
+                    else if (el.dataset.link === 's1-med') el.classList.add('att-med', 'text-indigo-300');
+                    else el.classList.add('att-low');
+                });
+                document.getElementById('att-output').textContent = 'Resolution: "Bank" = Financial Institution';
+            });
+            target1.addEventListener('mouseleave', () => resetAttention('.sen1'));
+
+            // Setup Target 2
+            const target2 = document.querySelector('.sen2[data-link="s2-target"]');
+            target2.classList.add('border-b-2', 'border-pink-500', 'border-dashed', 'text-pink-300');
+
+            target2.addEventListener('mouseenter', () => {
+                document.querySelectorAll('.sen2').forEach(el => {
+                    if (el === target2) return;
+                    if (el.dataset.link === 's2-high') el.classList.add('att-high', 'text-emerald-300');
+                    else if (el.dataset.link === 's2-med') el.classList.add('att-med', 'text-indigo-300');
+                    else el.classList.add('att-low');
+                });
+                document.getElementById('att-output').textContent = 'Resolution: "Bank" = Land alongside a body of water';
+            });
+            target2.addEventListener('mouseleave', () => resetAttention('.sen2'));
+
+            function resetAttention(selector) {
+                document.querySelectorAll(selector).forEach(el => {
+                    el.classList.remove('att-high', 'att-med', 'att-low', 'text-emerald-300', 'text-indigo-300');
+                });
+                document.getElementById('att-output').textContent = '';
+            }
+        }
+
+        // Initialize App
+        window.onload = () => {
+            loadTerm('tokens'); // Load default tab
+        };
+    </script>
+</body>
+</html>
